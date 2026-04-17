@@ -71,6 +71,7 @@ export default async function RetailerPage({ params }: { params: { sfId: string 
       </div>
 
       <GiftPicker
+        key={retailer.sf_id}
         retailer={retailer}
         catalog={catalog}
         initial={initial.map((s) => ({

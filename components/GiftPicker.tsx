@@ -99,8 +99,13 @@ export function GiftPicker({ retailer, catalog, initial }: Props) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ sfId: retailer.sf_id, selections }),
+        cache: "no-store",
       });
-      const body = await res.json();
+      if (res.status === 401) {
+        router.replace("/");
+        return;
+      }
+      const body = await res.json().catch(() => ({}));
       if (!res.ok) {
         setError(body.error ?? "Save failed");
         return;

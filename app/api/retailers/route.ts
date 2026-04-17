@@ -1,9 +1,14 @@
 import { NextResponse } from "next/server";
 import { getServerSupabase } from "@/lib/supabase-server";
-import { requireSession } from "@/lib/session";
+import { getSession, setSessionCookieOnResponse } from "@/lib/session";
 
 export async function GET(req: Request) {
-  requireSession();
+  const user = getSession();
+  if (!user) {
+    // 401 (not redirect) so client fetch() doesn't silently follow to login HTML
+    // and stall the grid. RetailerBrowser handles 401 by routing to /.
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
   const sp = new URL(req.url).searchParams;
 
   const distributor = sp.get("distributor") ?? null;
@@ -16,48 +21,37 @@ export async function GET(req: Request) {
 
   const supabase = getServerSupabase();
 
+  // Read from the `retailers_with_summary` view (migration 0002) so the
+  // "has selections" filter, points_used, balance, and gifts_summary come
+  // straight from SQL — no extra nested join, no client-side post-filtering,
+  // correct count.
   let q = supabase
-    .from("retailers")
+    .from("retailers_with_summary")
     .select(
-      "sf_id, retailer_name, distributor_name, state_name, district_name, zone, distributor_self_counter, q4_volume, earned_points, eligible_slab, max_eligible_gift, gift_selections(points_used, quantity, gift:gifts_catalog(name))",
+      "sf_id, retailer_name, distributor_name, state_name, district_name, zone, distributor_self_counter, q4_volume, earned_points, eligible_slab, max_eligible_gift, points_used, balance, selection_count, gifts_summary",
       { count: "exact" }
     )
-    .gt("earned_points", 0) // only retailers with earned points
+    .gt("earned_points", 0)
     .order("retailer_name", { ascending: true })
     .range(offset, offset + limit - 1);
 
-  if (distributor) q = q.eq("distributor_name", distributor);
-  if (state)       q = q.eq("state_name", state);
-  if (zone)        q = q.eq("zone", zone);
-  if (name)        q = q.ilike("retailer_name", `%${name}%`);
+  if (distributor)        q = q.eq("distributor_name", distributor);
+  if (state)              q = q.eq("state_name", state);
+  if (zone)               q = q.eq("zone", zone);
+  if (name)               q = q.ilike("retailer_name", `%${name}%`);
+  if (hasSel === "true")  q = q.gt("selection_count", 0);
+  if (hasSel === "false") q = q.eq("selection_count", 0);
 
   const { data, error, count } = await q;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  // has-selections filter applied in app layer (simpler than SQL-side join filter).
-  let rows = data ?? [];
-  if (hasSel === "true")  rows = rows.filter((r) => (r as any).gift_selections?.length > 0);
-  if (hasSel === "false") rows = rows.filter((r) => !((r as any).gift_selections?.length > 0));
-
-  return NextResponse.json({
-    rows: rows.map(shape),
-    total: count ?? rows.length,
+  const res = NextResponse.json({
+    rows: data ?? [],
+    total: count ?? (data?.length ?? 0),
     limit,
     offset,
   });
-}
-
-function shape(r: any) {
-  const sels = (r.gift_selections ?? []) as Array<{ points_used: number; quantity: number; gift: { name: string } | null }>;
-  const pointsUsed = sels.reduce((s, x) => s + (x.points_used ?? 0), 0);
-  return {
-    ...r,
-    points_used: pointsUsed,
-    balance: (r.earned_points ?? 0) - pointsUsed,
-    gifts_summary: sels
-      .filter((x) => x.gift?.name)
-      .map((x) => (x.quantity > 1 ? `${x.quantity}× ${x.gift!.name}` : x.gift!.name))
-      .join(", "),
-    gift_selections: undefined,
-  };
+  // Sliding expiry: each authenticated request extends the session.
+  setSessionCookieOnResponse(res, user);
+  return res;
 }

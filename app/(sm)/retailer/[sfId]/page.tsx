@@ -1,33 +1,46 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { unstable_cache } from "next/cache";
 import { getServerSupabase } from "@/lib/supabase-server";
 import { GiftPicker } from "@components/GiftPicker";
 import { formatPoints } from "@/lib/format";
 import type { Gift, GiftSelection } from "@/types/domain";
 
+// Retailer + selections must be live (selections change on save).
 export const dynamic = "force-dynamic";
+
+// Catalog rarely changes during a campaign; cache for an hour so five retailer
+// visits in a row hit the DB once, not five times.
+const getCatalog = unstable_cache(
+  async (): Promise<Gift[]> => {
+    const supabase = getServerSupabase();
+    const { data } = await supabase
+      .from("gifts_catalog")
+      .select("*")
+      .order("is_flexible", { ascending: true })
+      .order("points_required", { ascending: true });
+    return (data ?? []) as Gift[];
+  },
+  ["gifts_catalog"],
+  { revalidate: 3600, tags: ["gifts_catalog"] }
+);
 
 export default async function RetailerPage({ params }: { params: { sfId: string } }) {
   const supabase = getServerSupabase();
   const sfId = decodeURIComponent(params.sfId);
 
-  const [retailerRes, selectionsRes, catalogRes] = await Promise.all([
+  const [retailerRes, selectionsRes, catalog] = await Promise.all([
     supabase.from("retailers").select("*").eq("sf_id", sfId).maybeSingle(),
     supabase
       .from("gift_selections")
       .select("id, gift_id, points_used, quantity, notes")
       .eq("retailer_sf_id", sfId),
-    supabase
-      .from("gifts_catalog")
-      .select("*")
-      .order("is_flexible", { ascending: true })
-      .order("points_required", { ascending: true }),
+    getCatalog(),
   ]);
 
   if (retailerRes.error || !retailerRes.data) notFound();
   const retailer = retailerRes.data;
   const initial = (selectionsRes.data ?? []) as GiftSelection[];
-  const catalog = (catalogRes.data ?? []) as Gift[];
 
   return (
     <div className="space-y-4">

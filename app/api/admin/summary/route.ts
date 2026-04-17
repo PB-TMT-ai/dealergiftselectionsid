@@ -1,10 +1,16 @@
 import { NextResponse } from "next/server";
 import { getServerSupabase } from "@/lib/supabase-server";
-import { requireRole } from "@/lib/session";
+import { getSession, setSessionCookieOnResponse } from "@/lib/session";
 import { buildSummaries } from "@/lib/summary";
 
 export async function GET() {
-  requireRole("admin");
+  const user = getSession();
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  if (user.role !== "admin") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
   const supabase = getServerSupabase();
 
   const [retailersRes, selectionsRes, catalogRes] = await Promise.all([
@@ -19,5 +25,7 @@ export async function GET() {
   if (catalogRes.error)    return NextResponse.json({ error: catalogRes.error.message }, { status: 500 });
 
   const payload = buildSummaries(retailersRes.data ?? [], selectionsRes.data ?? [], catalogRes.data ?? []);
-  return NextResponse.json(payload);
+  const res = NextResponse.json(payload);
+  setSessionCookieOnResponse(res, user);
+  return res;
 }

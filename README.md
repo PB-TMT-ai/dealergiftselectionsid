@@ -35,6 +35,7 @@ cp .env.example .env.local
    ```
 4. Paste all three into `.env.local`.
 5. Open **SQL Editor → New query**, paste the contents of [`supabase/migrations/0001_init.sql`](supabase/migrations/0001_init.sql), and **Run**.
+6. Run [`supabase/migrations/0002_perf_indexes.sql`](supabase/migrations/0002_perf_indexes.sql) the same way — this adds performance indexes and the `dashboard_filter_options` / `retailers_with_summary` views the app reads from. It's idempotent, so it's safe to re-run on existing projects.
 
 ## 4) Seed the database
 

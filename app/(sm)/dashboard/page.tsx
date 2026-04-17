@@ -1,16 +1,19 @@
 import { getServerSupabase } from "@/lib/supabase-server";
 import { RetailerBrowser } from "@components/RetailerBrowser";
 
-export const dynamic = "force-dynamic";
+// 60-second ISR keeps back-navigation instant (and re-enables bfcache) while
+// still picking up new retailers within a minute.
+export const revalidate = 60;
 
 export default async function DashboardPage() {
   const supabase = getServerSupabase();
 
-  // One fetch → the browser derives zone/state/distributor cascading options.
+  // Pulls already-unique (zone, state, distributor) tuples from the
+  // `dashboard_filter_options` view (migration 0002_perf_indexes.sql) so the
+  // client payload is kilobytes instead of tens of kilobytes.
   const { data } = await supabase
-    .from("retailers")
-    .select("zone, state_name, distributor_name")
-    .gt("earned_points", 0);
+    .from("dashboard_filter_options")
+    .select("zone, state_name, distributor_name");
 
   const rows = (data ?? []).map((r) => ({
     zone: r.zone ?? null,

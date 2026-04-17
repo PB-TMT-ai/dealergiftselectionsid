@@ -15,9 +15,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <Link href="/dashboard" className="text-sm font-medium text-brand-600 hover:text-brand-700">
               SM view
             </Link>
-            <Link href="/logout" className="text-sm text-slate-500 hover:text-slate-900">
+            <a href="/logout" className="text-sm text-slate-500 hover:text-slate-900">
               Log out
-            </Link>
+            </a>
           </div>
         </div>
       </header>

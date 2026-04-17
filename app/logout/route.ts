@@ -6,9 +6,3 @@ export async function GET(req: NextRequest) {
   clearSessionCookieOnResponse(res);
   return res;
 }
-
-export async function POST() {
-  const res = NextResponse.json({ ok: true });
-  clearSessionCookieOnResponse(res);
-  return res;
-}

@@ -1,12 +1,16 @@
 import { NextResponse } from "next/server";
-import { clearSessionCookie } from "@/lib/session";
+import { clearSessionCookieOnResponse } from "@/lib/session";
 
 export async function GET() {
-  clearSessionCookie();
-  return NextResponse.redirect(new URL("/", process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"));
+  const res = NextResponse.redirect(
+    new URL("/", process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000")
+  );
+  clearSessionCookieOnResponse(res);
+  return res;
 }
 
 export async function POST() {
-  clearSessionCookie();
-  return NextResponse.json({ ok: true });
+  const res = NextResponse.json({ ok: true });
+  clearSessionCookieOnResponse(res);
+  return res;
 }

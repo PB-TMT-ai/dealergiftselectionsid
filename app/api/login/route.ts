@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getServerSupabase } from "@/lib/supabase-server";
-import { setSessionCookie } from "@/lib/session";
+import { setSessionCookieOnResponse } from "@/lib/session";
 import { ROLES } from "@/lib/constants";
 import type { Role } from "@/types/domain";
 
@@ -23,6 +23,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid PIN" }, { status: 401 });
   }
 
-  setSessionCookie({ userId: data.id, name: data.name, role: data.role as Role });
-  return NextResponse.json({ ok: true, role: data.role, name: data.name });
+  const res = NextResponse.json({ ok: true, role: data.role, name: data.name });
+  setSessionCookieOnResponse(res, { userId: data.id, name: data.name, role: data.role as Role });
+  return res;
 }

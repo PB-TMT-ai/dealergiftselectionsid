@@ -3,6 +3,9 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
+// Keep in sync with RetailerBrowser.tsx STORAGE_KEY.
+const RETAILER_FILTERS_STORAGE_KEY = "retailerBrowser.filters.v1";
+
 export function LoginForm() {
   const router = useRouter();
   const [pin, setPin] = useState("");
@@ -23,6 +26,14 @@ export function LoginForm() {
       if (!res.ok) {
         setErr(body.error ?? "Login failed");
         return;
+      }
+      // A fresh login must not inherit the previous user's dropdown filters.
+      if (typeof window !== "undefined") {
+        try {
+          window.sessionStorage.removeItem(RETAILER_FILTERS_STORAGE_KEY);
+        } catch {
+          // Ignore storage access errors.
+        }
       }
       router.replace(body.role === "admin" ? "/admin" : "/dashboard");
       router.refresh();

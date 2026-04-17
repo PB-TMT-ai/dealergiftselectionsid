@@ -1,11 +1,23 @@
 import { cookies } from "next/headers";
+import type { NextResponse } from "next/server";
 import { redirect } from "next/navigation";
 import { createHmac, timingSafeEqual } from "crypto";
 import type { Role, SessionUser } from "@/types/domain";
 import { ROLES } from "@/lib/constants";
 
 const COOKIE_NAME = "dgsd_session";
-const MAX_AGE = 60 * 60 * 12; // 12 hours
+const MAX_AGE = 60 * 60 * 24 * 30; // 30 days — survives browser refresh / reopen
+
+function cookieOptions(maxAge: number) {
+  return {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax" as const,
+    path: "/",
+    maxAge,
+    expires: new Date(Date.now() + maxAge * 1000),
+  };
+}
 
 function secret(): string {
   const s = process.env.SESSION_SECRET;
@@ -50,17 +62,23 @@ export function decodeSession(token: string | undefined): SessionUser | null {
 }
 
 export function setSessionCookie(user: SessionUser) {
-  cookies().set(COOKIE_NAME, encodeSession(user), {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-    maxAge: MAX_AGE,
-  });
+  cookies().set(COOKIE_NAME, encodeSession(user), cookieOptions(MAX_AGE));
 }
 
 export function clearSessionCookie() {
-  cookies().set(COOKIE_NAME, "", { httpOnly: true, path: "/", maxAge: 0 });
+  cookies().set(COOKIE_NAME, "", { ...cookieOptions(0), expires: new Date(0) });
+}
+
+// Response-based helpers. Setting cookies directly on the outgoing
+// NextResponse is the most reliable way to ensure the Set-Cookie header
+// reaches the browser — avoiding edge-cases where `cookies().set()` in a
+// Route Handler fails to persist across refresh.
+export function setSessionCookieOnResponse(res: NextResponse, user: SessionUser) {
+  res.cookies.set(COOKIE_NAME, encodeSession(user), cookieOptions(MAX_AGE));
+}
+
+export function clearSessionCookieOnResponse(res: NextResponse) {
+  res.cookies.set(COOKIE_NAME, "", { ...cookieOptions(0), expires: new Date(0) });
 }
 
 export function getSession(): SessionUser | null {

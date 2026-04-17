@@ -61,18 +61,8 @@ export function decodeSession(token: string | undefined): SessionUser | null {
   }
 }
 
-export function setSessionCookie(user: SessionUser) {
-  cookies().set(COOKIE_NAME, encodeSession(user), cookieOptions(MAX_AGE));
-}
-
-export function clearSessionCookie() {
-  cookies().set(COOKIE_NAME, "", { ...cookieOptions(0), expires: new Date(0) });
-}
-
-// Response-based helpers. Setting cookies directly on the outgoing
-// NextResponse is the most reliable way to ensure the Set-Cookie header
-// reaches the browser — avoiding edge-cases where `cookies().set()` in a
-// Route Handler fails to persist across refresh.
+// Set cookies directly on the outgoing NextResponse — `cookies().set()` inside
+// a Route Handler can drop the Set-Cookie header on some Next 14 runtimes.
 export function setSessionCookieOnResponse(res: NextResponse, user: SessionUser) {
   res.cookies.set(COOKIE_NAME, encodeSession(user), cookieOptions(MAX_AGE));
 }

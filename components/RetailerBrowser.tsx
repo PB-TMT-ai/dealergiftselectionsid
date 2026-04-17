@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { formatPoints } from "@/lib/format";
+
+const STORAGE_KEY = "retailerBrowser.filters.v1";
 
 interface Row {
   sf_id: string;
@@ -37,6 +39,47 @@ export function RetailerBrowser({ filterSource }: Props) {
   const [offset, setOffset] = useState(0);
   const [loading, setLoading] = useState(false);
   const limit = 50;
+
+  // Restore filters from sessionStorage on mount so they survive navigation
+  // to a retailer page and back. Only "Clear all" wipes them.
+  const hydratedRef = useRef(false);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = window.sessionStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        const saved = JSON.parse(raw) as {
+          name?: string;
+          zone?: string;
+          state?: string;
+          distributor?: string;
+          hasSel?: "" | "true" | "false";
+        };
+        if (typeof saved.name === "string") setName(saved.name);
+        if (typeof saved.zone === "string") setZone(saved.zone);
+        if (typeof saved.state === "string") setState(saved.state);
+        if (typeof saved.distributor === "string") setDistributor(saved.distributor);
+        if (saved.hasSel === "" || saved.hasSel === "true" || saved.hasSel === "false") {
+          setHasSel(saved.hasSel);
+        }
+      }
+    } catch {
+      // Ignore malformed storage.
+    }
+    hydratedRef.current = true;
+  }, []);
+
+  useEffect(() => {
+    if (!hydratedRef.current || typeof window === "undefined") return;
+    try {
+      window.sessionStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({ name, zone, state, distributor, hasSel })
+      );
+    } catch {
+      // Storage may be unavailable (private mode, quota); silently skip.
+    }
+  }, [name, zone, state, distributor, hasSel]);
 
   // Cascading options: each level only shows values present in rows matching the prior selections.
   const zoneOptions = useMemo(
@@ -104,6 +147,13 @@ export function RetailerBrowser({ filterSource }: Props) {
 
   function reset() {
     setName(""); setZone(""); setState(""); setDistributor(""); setHasSel("");
+    if (typeof window !== "undefined") {
+      try {
+        window.sessionStorage.removeItem(STORAGE_KEY);
+      } catch {
+        // Ignore.
+      }
+    }
   }
 
   return (
